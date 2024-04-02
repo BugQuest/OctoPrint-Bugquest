@@ -24,11 +24,16 @@ class BugquestPlugin(
 ):
 
     def __init__(self):
-        self._checkTempTimer = None
+        self._checkTimer = None
+        self._notifyClientTimer = None
+        self._oledTimer = None
         self.light_stat = False
         self.tempSensor = DHT22(D23)
+        self.temperature = -1
+        self.humidity = -1
         gpio.setmode(gpio.BCM)
-        gpio.setup(20, gpio.OUT, initial=gpio.HIGH)
+        gpio.setup(20, gpio.OUT, initial=gpio.HIGH)#light
+        gpio.setup(21, gpio.OUT, initial=gpio.HIGH)#fan
         self.init_oled()
 
     def init_oled(self):
@@ -45,7 +50,50 @@ class BugquestPlugin(
         self.oled.image(self.image)
         self.oled.show()
 
-    def update_oled(self, temperature, humidity):
+    def on_after_startup(self):
+        self._logger.debug("Bugquest Plugin started!")
+
+        self._logger.debug("Let's start RepeatedTimer!")
+        self.start_check_timer(3.0)
+        self.start_notify_client_timer(5.0)
+        self.start_oled_timer(1)
+
+
+    def start_check_timer(self, interval):
+        self._checkTimer = RepeatedTimer(
+            interval, self.update_temp, run_first=True
+        )
+        self._checkTimer.start()
+
+    def start_notify_client_timer(self, interval):
+        self._notifyClientTimer = RepeatedTimer(
+            interval, self.update_client, run_first=True
+        )
+        self._notifyClientTimer.start()
+
+    def start_oled_timer(self, interval):
+        self._oledTimer = RepeatedTimer(
+            interval, self.update_oled, run_first=True
+        )
+        self._oledTimer.start()
+
+    def update_temp(self):
+        try:
+            self.temperature = float(self.tempSensor.temperature)
+            self.humidity = float(self.tempSensor.humidity)
+            self._logger.debug(f"Temperature: {self.temperature}°C, Humidity: {self.humidity}%")
+        except Exception as e:
+            self.temperature = -1
+            self.humidity = -1
+            self._logger.debug(f"Error reading temperature: {e}")
+
+    def update_client(self):
+        if self.temperature > -1 and self.humidity > -1:
+            self._plugin_manager.send_plugin_message(
+                self._identifier, dict(temp=self.temperature, humidity=self.humidity)
+            )
+
+    def update_oled(self):
         
         # Draw a black filled box to clear the image.
         self.draw.rectangle((0,0,self.oled.width, self.oled.height), outline=0, fill=0)
@@ -61,36 +109,12 @@ class BugquestPlugin(
         CPU_TEMP = CPU_TEMP.decode()
         CPU_TEMP = CPU_TEMP.replace('\n', '')
         self.draw.text((self.oled_x, self.oled_top+8), "CPU: " + str(CPU_TEMP),  font=self.oled_font, fill=255)
-        self.draw.text((self.oled_x, self.oled_top+16), "Temp: " + str(temperature) + "°C",  font=self.oled_font, fill=255)
-        self.draw.text((self.oled_x, self.oled_top+24), "Humidity: " + str(humidity) + "%",  font=self.oled_font, fill=255)
+        if self.temperature > -1:
+            self.draw.text((self.oled_x, self.oled_top+16), "Temp: " + str(self.temperature) + "°C",  font=self.oled_font, fill=255)
+        if self.humidity > -1:
+            self.draw.text((self.oled_x, self.oled_top+24), "Humidity: " + str(self.humidity) + "%",  font=self.oled_font, fill=255)
         self.oled.image(self.image)
         self.oled.show()
-
-
-    def on_after_startup(self):
-        self._logger.debug("Bugquest Plugin started!")
-
-        self._logger.debug("Let's start RepeatedTimer!")
-        self.start_sensor_timer(5.0)
-
-
-    def start_sensor_timer(self, interval):
-        self._checkTempTimer = RepeatedTimer(
-            interval, self.update_temp, run_first=True
-        )
-        self._checkTempTimer.start()
-
-    def update_temp(self):
-        try:
-            temp = self.tempSensor.temperature
-            humidity = self.tempSensor.humidity
-            self._logger.debug(f"Temperature: {temp}°C, Humidity: {humidity}%")
-            self.update_oled(temp, humidity)
-            self._plugin_manager.send_plugin_message(
-                self._identifier, dict(temp=temp, humidity=humidity)
-            )
-        except Exception as e:
-            self._logger.debug(f"Error reading temperature: {e}")
 
     def get_assets(self):
         return {

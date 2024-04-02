@@ -1,9 +1,4 @@
-###
-# This file is only here to make sure that something like
-#
-#    pip install -e .
-#
-# works as expected. Requirements can be found in setup.py.
-###
-
-.
+Adafruit-Blinka=8.38.0
+adafruit-circuitpython-ssd1306=2.12.17
+adafruit-circuitpython-dht=4.0.4
+pillow=10.3.0
