@@ -82,6 +82,11 @@ class BugquestPlugin(
             self.temperature = float(self.tempSensor.temperature)
             self.humidity = float(self.tempSensor.humidity)
             self._logger.debug(f"Temperature: {self.temperature}°C, Humidity: {self.humidity}%")
+            if self.temperature > 30:
+                gpio.output(21, gpio.LOW)
+            else:
+                gpio.output(21, gpio.HIGH)
+
         except Exception as e:
             self.temperature = -1
             self.humidity = -1
