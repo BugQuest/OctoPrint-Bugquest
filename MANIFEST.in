@@ -1,0 +1,4 @@
+include README.md
+recursive-include octoprint_bugquest/templates *
+recursive-include octoprint_bugquest/translations *
+recursive-include octoprint_bugquest/static *
