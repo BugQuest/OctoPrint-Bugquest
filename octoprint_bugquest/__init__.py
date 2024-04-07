@@ -9,6 +9,8 @@ from adafruit_dht import DHT22
 from flask import jsonify, request
 import RPi.GPIO as gpio
 from adafruit_ssd1306 import SSD1306_I2C
+import serial
+import sys
 
 import subprocess
 
@@ -18,9 +20,10 @@ from PIL import ImageFont
 
 class BugquestPlugin(
     octoprint.plugin.StartupPlugin,
+    octoprint.plugin.SettingsPlugin,
     octoprint.plugin.AssetPlugin,
     octoprint.plugin.TemplatePlugin,
-    octoprint.plugin.BlueprintPlugin
+    octoprint.plugin.SimpleApiPlugin
 ):
 
     def __init__(self):
@@ -31,10 +34,22 @@ class BugquestPlugin(
         self.tempSensor = DHT22(D23)
         self.temperature = -1
         self.humidity = -1
+        self.color = "FFFFFF"
         gpio.setmode(gpio.BCM)
-        gpio.setup(20, gpio.OUT, initial=gpio.HIGH)#light
+        # gpio.setup(20, gpio.OUT, initial=gpio.HIGH)#light
         gpio.setup(21, gpio.OUT, initial=gpio.HIGH)#fan
+        # gpio.setup(16, gpio.OUT)#pico for light strip
+        # gpio.output(16, gpio.HIGH)
         self.init_oled()
+
+    def checkHexColor(self, hexa_color):
+        if len(hexa_color) != 6:
+            return False
+        try:
+            int(hexa_color, 16)
+        except ValueError:
+            return False
+        return True
 
     def init_oled(self):
         self.i2c = I2C(SCL, SDA)
@@ -58,6 +73,9 @@ class BugquestPlugin(
         self.start_notify_client_timer(5.0)
         self.start_oled_timer(1)
 
+        color = self._settings.get(["color"])
+        if color != None:
+            self.update_color(color)
 
     def start_check_timer(self, interval):
         self._checkTimer = RepeatedTimer(
@@ -123,18 +141,61 @@ class BugquestPlugin(
 
     def get_assets(self):
         return {
-            "js": ["js/bugquest.js"],
+            "js": ["js/jscolor.min.js", "js/bugquest.js"],
             "css": ["css/bugquest.css"]
         }
-
-    @octoprint.plugin.BlueprintPlugin.route("/toogleLight", methods=["GET"])
-    def toogle_light(self):
-        self.light_stat = not self.light_stat
-        self._logger.debug("Light is: "+str(self.light_stat))
-        gpio.output(20, gpio.LOW if self.light_stat else gpio.HIGH)
-        return {"status": "ok", "light": self.light_stat}
     
+    def get_api_commands(self):
+        return dict(
+            update_color=["color"]
+        )
 
+    def on_api_command(self, command, data):
+        if command == "update_color":
+            color = data.get('color', None)
+            self._logger.debug(f"Received color: {color}")
+            if color != None:
+                return self.update_color(color)
+        return jsonify({"status": "error", "message": "Invalid command"})
+
+    def update_color(self, color):
+        #if color is not a string, return error
+        if not isinstance(color, str):
+            return jsonify({"status": "error", "message": "Invalid color"})
+
+        #if first char is #, remove it
+        if color[0] == "#":
+            color = color[1:]
+
+        if not self.checkHexColor(color):
+            return jsonify({"status": "error", "message": "Invalid color"})
+        
+        ser = serial.Serial(
+            port='/dev/ttyS0',
+            baudrate = 115200,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            bytesize=serial.EIGHTBITS,
+            timeout=1
+        )
+        ser.write(color.encode('utf-8'))
+        ser.close()
+        self.color = color
+        return jsonify({"status": "ok"})
+
+    def on_settings_save(self, data):
+        octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
+        color = self._settings.get(["color"])
+        if color != None:
+            self.update_color(color)
+
+    def get_settings_defaults(self):
+        return dict(color="FFFFFF")
+    
+    def get_template_configs(self):
+        return [
+			dict(type="settings", custom_bindings=False)
+		]
 
 __plugin_name__ = "Bugquest Plugin"
 __plugin_pythoncompat__ = ">=3,<4"  # Only Python 3

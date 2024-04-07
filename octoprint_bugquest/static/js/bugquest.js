@@ -11,9 +11,11 @@ $(function() {
         self.temperature = ko.observable();
         self.humidity = ko.observable();
 
-        self.light_stat = ko.observable();
+        self.color = ko.observable()
 
-        self.light_stat(false)
+        // self.light_stat = ko.observable();
+
+        // self.light_stat(false)
 
 
         self.onAllBound = function () {
@@ -46,15 +48,38 @@ $(function() {
             return window.PLUGIN_BASEURL + "bugquest" + path;
         };
 
+        self.updateColor = function(picker, event) {
+            let newColor = event.currentTarget.jscolor.toHEXString()
+            if(newColor) {
+                self.color(newColor)
+                console.log("update color: " + newColor)
+                // OctoPrint.simpleApiCommand('gpiorgbcontroller', 'update_color', {'color': newColor})
+            }
+        }
+
+        self.saveColor = function(picker, event) {
+            var newColor = event.currentTarget.jscolor.toHEXString()
+            if(newColor) {
+                self.color(newColor)
+                console.log("save color: " + newColor)
+                OctoPrint.simpleApiCommand('bugquest', 'update_color', {'color': newColor})
+                OctoPrint.settings.savePluginSettings('bugquest', {'color': newColor})
+            }
+        }
+
+        // self.onBeforeBinding = function () {
+        //     document.querySelector('#color-picker-control').jscolor.fromString(self.color())
+        // }
+
         self.onClickLight = function() {
-            $.ajax({
-                type: "GET",
-                url: self.buildPluginUrl("/toogleLight"),
-                dataType: "json",
-                success: function (data) {
-                    self.light_stat(data.light)
-                }
-            })
+            // $.ajax({
+            //     type: "GET",
+            //     url: self.buildPluginUrl("/toogleLight"),
+            //     dataType: "json",
+            //     success: function (data) {
+            //         self.light_stat(data.light)
+            //     }
+            // })
         }
 
         self.onDataUpdaterPluginMessage = function (plugin, data) {
@@ -67,6 +92,10 @@ $(function() {
             }
             if(data.humidity){
                 self.humidity(data.humidity + "%")
+            }
+            if(data.color) {
+                self.color(data.color)
+                //document.querySelector('#color-picker-control').jscolor.fromString(self.color())
             }
         }
     }

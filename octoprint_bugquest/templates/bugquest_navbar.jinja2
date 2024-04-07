@@ -1,11 +1,15 @@
-<div class="btn off" 
+<!-- <div class="btn off" 
 data-bind="click: function(){$root.onClickLight()}, visible: !light_stat()">
 Lumière caisson: off
 </div>
 <div class="btn on" 
 data-bind="click: function(){$root.onClickLight()}, visible: light_stat()">
 Lumière caisson: on
-</div>
+</div> -->
+<input class="span" 
+id="color-picker-control" 
+data-jscolor="{format: 'hex'}" 
+data-bind="value: color, event: {input: updateColor, change: saveColor}">
 <div class="navbar-text" style="margin: .2em;">
     <i class="fas fa-thermometer-three-quarters"></i>
     <span data-bind="attr: { title: 'Temperature du caisson' }, html: temperature()"></span>
