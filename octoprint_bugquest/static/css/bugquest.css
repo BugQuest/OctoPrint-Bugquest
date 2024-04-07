@@ -25,3 +25,8 @@
   #navbar_plugin_bugquest .btn.off {
     background: crimson;
   }
+
+  #navbar_plugin_bugquest #color-picker-control {
+    width: 100px;
+    margin-right: 10px;
+  }
