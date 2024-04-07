@@ -13,10 +13,11 @@ $(function() {
 
         self.color = ko.observable()
 
-        // self.light_stat = ko.observable();
+        self.light_stat = ko.observable();
+        self.fan_stat = ko.observable();
 
-        // self.light_stat(false)
-
+        self.light_stat(false)
+        self.fan_stat(false)
 
         self.onAllBound = function () {
             // Check for themify - sadly the themeify plugin always sets the "themeify" class on html even though themes are not active so we cant use that as not selector in the css - so we use js :(
@@ -52,8 +53,6 @@ $(function() {
             let newColor = event.currentTarget.jscolor.toHEXString()
             if(newColor) {
                 self.color(newColor)
-                console.log("update color: " + newColor)
-                // OctoPrint.simpleApiCommand('gpiorgbcontroller', 'update_color', {'color': newColor})
             }
         }
 
@@ -61,7 +60,6 @@ $(function() {
             var newColor = event.currentTarget.jscolor.toHEXString()
             if(newColor) {
                 self.color(newColor)
-                console.log("save color: " + newColor)
                 OctoPrint.simpleApiCommand('bugquest', 'update_color', {'color': newColor})
                 OctoPrint.settings.savePluginSettings('bugquest', {'color': newColor})
             }
@@ -72,14 +70,18 @@ $(function() {
         // }
 
         self.onClickLight = function() {
-            // $.ajax({
-            //     type: "GET",
-            //     url: self.buildPluginUrl("/toogleLight"),
-            //     dataType: "json",
-            //     success: function (data) {
-            //         self.light_stat(data.light)
-            //     }
-            // })
+            OctoPrint.simpleApiCommand('bugquest', 'toggle_light')
+            .done(function(response) {
+                self.light_stat(response.light)
+                OctoPrint.settings.savePluginSettings('bugquest', {'light': response.light})
+            })
+        }
+
+        self.onClickFan = function() {
+            OctoPrint.simpleApiCommand('bugquest', 'toggle_fan')
+            .done(function(response) {
+                self.fan_stat(response.fan)
+            })
         }
 
         self.onDataUpdaterPluginMessage = function (plugin, data) {
@@ -95,7 +97,7 @@ $(function() {
             }
             if(data.color) {
                 self.color(data.color)
-                //document.querySelector('#color-picker-control').jscolor.fromString(self.color())
+                document.querySelector('#color-picker-control').jscolor.fromString(self.color())
             }
         }
     }

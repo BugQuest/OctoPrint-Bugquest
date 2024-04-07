@@ -1,11 +1,19 @@
-<!-- <div class="btn off" 
+<div class="btn off" 
+data-bind="click: function(){$root.onClickFan()}, visible: !fan_stat()">
+Ventilateur: off
+</div>
+<div class="btn on" 
+data-bind="click: function(){$root.onClickFan()}, visible: fan_stat()">
+Ventilateur: on
+</div>
+<div class="btn off" 
 data-bind="click: function(){$root.onClickLight()}, visible: !light_stat()">
 Lumière caisson: off
 </div>
 <div class="btn on" 
 data-bind="click: function(){$root.onClickLight()}, visible: light_stat()">
 Lumière caisson: on
-</div> -->
+</div>
 <input class="span" 
 id="color-picker-control" 
 data-jscolor="{format: 'hex'}" 

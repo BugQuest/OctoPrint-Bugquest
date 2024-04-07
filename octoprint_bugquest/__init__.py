@@ -10,7 +10,7 @@ from flask import jsonify, request
 import RPi.GPIO as gpio
 from adafruit_ssd1306 import SSD1306_I2C
 import serial
-import sys
+from time import sleep
 
 import subprocess
 
@@ -31,15 +31,14 @@ class BugquestPlugin(
         self._notifyClientTimer = None
         self._oledTimer = None
         self.light_stat = False
+        self.fan_stat = False
         self.tempSensor = DHT22(D23)
         self.temperature = -1
         self.humidity = -1
         self.color = "FFFFFF"
         gpio.setmode(gpio.BCM)
-        # gpio.setup(20, gpio.OUT, initial=gpio.HIGH)#light
-        gpio.setup(21, gpio.OUT, initial=gpio.HIGH)#fan
-        # gpio.setup(16, gpio.OUT)#pico for light strip
-        # gpio.output(16, gpio.HIGH)
+        gpio.setup(19, gpio.OUT, initial=gpio.HIGH)#light
+        gpio.setup(26, gpio.OUT, initial=gpio.HIGH)#fan
         self.init_oled()
 
     def checkHexColor(self, hexa_color):
@@ -73,9 +72,17 @@ class BugquestPlugin(
         self.start_notify_client_timer(5.0)
         self.start_oled_timer(1)
 
+        light_stat = self._settings.get(["light"])
+        if light_stat != None:
+            self.light_stat = light_stat
+            gpio.output(19, gpio.LOW if self.light_stat else gpio.HIGH)
+
+        sleep(1)
+
         color = self._settings.get(["color"])
-        if color != None:
+        if color != None and self.light_stat == True:
             self.update_color(color)
+        self._plugin_manager.send_plugin_message(self._identifier, dict(color=self.color, light=self.light_stat))
 
     def start_check_timer(self, interval):
         self._checkTimer = RepeatedTimer(
@@ -99,16 +106,16 @@ class BugquestPlugin(
         try:
             self.temperature = float(self.tempSensor.temperature)
             self.humidity = float(self.tempSensor.humidity)
-            self._logger.debug(f"Temperature: {self.temperature}°C, Humidity: {self.humidity}%")
+            # self._logger.debug(f"Temperature: {self.temperature}°C, Humidity: {self.humidity}%")
             if self.temperature > 30:
-                gpio.output(21, gpio.LOW)
-            else:
-                gpio.output(21, gpio.HIGH)
+                gpio.output(26, gpio.LOW)
+            elif not self.fan_stat:
+                gpio.output(26, gpio.HIGH)
 
         except Exception as e:
             self.temperature = -1
             self.humidity = -1
-            self._logger.debug(f"Error reading temperature: {e}")
+            # self._logger.debug(f"Error reading temperature: {e}")
 
     def update_client(self):
         if self.temperature > -1 and self.humidity > -1:
@@ -147,7 +154,9 @@ class BugquestPlugin(
     
     def get_api_commands(self):
         return dict(
-            update_color=["color"]
+            update_color=["color"],
+            toggle_light=[],
+            toggle_fan=[]
         )
 
     def on_api_command(self, command, data):
@@ -156,7 +165,21 @@ class BugquestPlugin(
             self._logger.debug(f"Received color: {color}")
             if color != None:
                 return self.update_color(color)
+        elif command == "toggle_light":
+            self.light_stat = not self.light_stat
+            gpio.output(19, gpio.LOW if self.light_stat else gpio.HIGH)
+            color = self._settings.get(["color"])
+            if color != None and self.light_stat == True:
+                sleep(1)
+                self.update_color(color)
+            return jsonify({"status": "ok", 'light': self.light_stat})
+        elif command == "toggle_fan":
+            self.fan_stat = not self.fan_stat
+            gpio.output(26, gpio.LOW if self.fan_stat else gpio.HIGH)
+            return jsonify({"status": "ok", 'fan': self.fan_stat})
+
         return jsonify({"status": "error", "message": "Invalid command"})
+    
 
     def update_color(self, color):
         #if color is not a string, return error
@@ -181,6 +204,7 @@ class BugquestPlugin(
         ser.write(color.encode('utf-8'))
         ser.close()
         self.color = color
+        self._plugin_manager.send_plugin_message(self._identifier, dict(color=self.color, light=self.light_stat))
         return jsonify({"status": "ok"})
 
     def on_settings_save(self, data):
@@ -188,9 +212,13 @@ class BugquestPlugin(
         color = self._settings.get(["color"])
         if color != None:
             self.update_color(color)
+        light_stat = self._settings.get(["light"])
+        if light_stat != None:
+            self.light_stat = light_stat
+            gpio.output(19, gpio.LOW if self.light_stat else gpio.HIGH)
 
     def get_settings_defaults(self):
-        return dict(color="FFFFFF")
+        return dict(color="FFFFFF", light=False)
     
     def get_template_configs(self):
         return [
